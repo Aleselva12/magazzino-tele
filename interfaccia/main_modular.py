@@ -18,6 +18,7 @@ sys.path.insert(0, backend_path)
 from pages.welcome import WelcomePage
 from pages.ordini import CreaOrdinePage
 from pages.gestisci_ordini import GestisciOrdiniPage
+from pages.magazzino import MagazzinoPage
 
 # Import styling
 from utils.styling import AppStyles
@@ -239,8 +240,15 @@ class MagazzinoTeleApp:
         messagebox.showinfo("Info", "Pagina gestione clienti in sviluppo")
     
     def show_manage_inventory_page(self):
-        """Mostra la pagina gestione inventario (placeholder)"""
-        messagebox.showinfo("Info", "Pagina gestione inventario in sviluppo")
+        """Mostra la pagina gestione inventario magazzino"""
+        self.clear_window()
+        try:
+            self.current_page = MagazzinoPage(self.root)
+            print("✅ Pagina gestione inventario caricata")
+        except Exception as e:
+            print(f"❌ Errore caricamento pagina inventario: {e}")
+            messagebox.showerror("Errore", f"Impossibile caricare la pagina inventario:\n{e}")
+            self.show_home_page()  # Torna alla homepage in caso di errore
     
     def on_closing(self):
         """Gestisce la chiusura dell'applicazione"""
