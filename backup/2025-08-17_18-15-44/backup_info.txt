@@ -1,0 +1,14 @@
+Backup Database - 2025-08-17_18-15-44
+==================================================
+
+Data/Ora: 17/08/2025 18:15:46
+Database: magazzino_tele
+Host: localhost
+Numero tabelle: 2
+
+Tabelle incluse:
+- customers
+- magazzino
+
+File SQL: database_backup_2025-08-17_18-15-44.sql
+File Excel: cartella excel_tables/
