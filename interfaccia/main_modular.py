@@ -19,6 +19,7 @@ from pages.welcome import WelcomePage
 from pages.ordini import CreaOrdinePage
 from pages.gestisci_ordini import GestisciOrdiniPage
 from pages.magazzino import MagazzinoPage
+from pages.backup import show_backup_interface
 
 # Import styling
 from utils.styling import AppStyles
@@ -169,6 +170,12 @@ class MagazzinoTeleApp:
                 'description': 'Controlla stock e gestisci prodotti',
                 'command': self.show_manage_inventory_page,
                 'row': 1, 'col': 1
+            },
+            {
+                'text': '💾 Backup Database',
+                'description': 'Crea backup e ripristina il database',
+                'command': self.show_backup_page,
+                'row': 2, 'col': 0
             }
         ]
         
@@ -243,11 +250,22 @@ class MagazzinoTeleApp:
         """Mostra la pagina gestione inventario magazzino"""
         self.clear_window()
         try:
-            self.current_page = MagazzinoPage(self.root)
+            self.current_page = MagazzinoPage(self.root, self.show_home_page)
             print("✅ Pagina gestione inventario caricata")
         except Exception as e:
             print(f"❌ Errore caricamento pagina inventario: {e}")
             messagebox.showerror("Errore", f"Impossibile caricare la pagina inventario:\n{e}")
+            self.show_home_page()  # Torna alla homepage in caso di errore
+    
+    def show_backup_page(self):
+        """Mostra la pagina gestione backup"""
+        self.clear_window()
+        try:
+            self.current_page = show_backup_interface(self.root, self.show_home_page)
+            print("✅ Pagina gestione backup caricata")
+        except Exception as e:
+            print(f"❌ Errore caricamento pagina backup: {e}")
+            messagebox.showerror("Errore", f"Impossibile caricare la pagina backup:\n{e}")
             self.show_home_page()  # Torna alla homepage in caso di errore
     
     def on_closing(self):
