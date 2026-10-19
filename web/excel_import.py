@@ -229,30 +229,41 @@ def parse_sources(parts, metadata):
     return sources,extra,notices
 
 def stock_rows(matrix, products, model_labels, color_labels):
-    _kind,headers,rows,_name=matrix
-    by_pair={}
-    for code,model_code,model,color_code,color in products:
-        key=(norm(model),norm(color))
-        if key in by_pair:raise ValueError("Prodotti con modello/colore duplicati")
-        by_pair[key]=str(code).strip()
-    output=[]
-    for row in rows:
-        color_name=norm(row[0] if row else "")
-        for i,heading in enumerate(headers[1:],1):
-            raw=row[i] if i<len(row) else None
-            if raw is None or str(raw).strip()=="":continue
-            key=(norm(heading),color_name)
-            if key not in by_pair:
-                raise ValueError("Giacenza senza prodotto corrispondente: " + str(heading)[:45])
+    """Map non-empty stock cells without conflating homonymous color names.
+
+    Blank cells mean *unknown*, not a zero stock. Multiple product codes can
+    share the displayed model/color names: only an actually populated,
+    ambiguous cell needs manual disambiguation.
+    """
+    _kind, headers, rows, _name = matrix
+    by_pair = {}
+    for code, model_code, model, color_code, color in products:
+        key = (norm(model), norm(color))
+        by_pair.setdefault(key, set()).add(str(code).strip())
+    output = []
+    for row_number, row in enumerate(rows, 2):
+        color_name = norm(row[0] if row else "")
+        for i, heading in enumerate(headers[1:], 1):
+            raw = row[i] if i < len(row) else None
+            if raw is None or str(raw).strip() == "":
+                continue
+            key = (norm(heading), color_name)
+            codes = by_pair.get(key, set())
+            if not codes:
+                raise ValueError(f"Magazzino riga {row_number}: modello/colore non riconosciuti: {heading!s}")
+            if len(codes) != 1:
+                raise ValueError(
+                    f"Magazzino riga {row_number}: {heading!s} / {row[0]!s} corrisponde "
+                    f"a più codici prodotto ({', '.join(sorted(codes)[:5])}). "
+                    "Per questa giacenza serve il codice colore, non basta il nome."
+                )
             try:
-                # Ignore formula literals; only confirmed numeric quantities.
-                value=float(raw)
-                if not value.is_integer():raise ValueError()
-                qty=int(value)
-                if abs(qty)>1000000:raise ValueError()
-            except (TypeError,ValueError):
-                raise ValueError("Giacenza non numerica in "+str(heading)[:40])
-            output.append([by_pair[key],qty])
+                value = float(raw)
+                if not value.is_integer() or abs(value) > 1000000:
+                    raise ValueError()
+            except (TypeError, ValueError):
+                raise ValueError(f"Magazzino riga {row_number}: giacenza non numerica")
+            output.append([next(iter(codes)), int(value)])
     return output
 
 @bp.post("/import")

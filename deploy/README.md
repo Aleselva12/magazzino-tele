@@ -248,3 +248,40 @@ togliere il pulsante dal frontend.
 **Nota sicurezza:** fintanto che la webapp non usa login applicativo,
 mantenere la porta HTTP vincolata all'IP Tailscale e restringere gli
 accessi con le grants/ACL Tailscale.
+
+## Backup SQL scaricabile e ripristinabile dal browser
+
+Nel gestionale, aprire **Backup SQL**:
+- **Scarica backup SQL (.sql)**: ottiene `database-backup-YYYY-MM-DD_HH-MM.sql`
+  contenente CREATE TABLE e INSERT delle sette tabelle MySQL attuali.
+  Conservare il file in privato, perché contiene dati cliente.
+- **Verifica backup SQL**: aprire un file `.sql`. Il server controlla la
+  sintassi supportata, i nomi delle tabelle, le colonne e i vincoli sul
+  database, eseguendo l'inserimento dentro una transazione poi annullata.
+- **Importa backup dopo verifica**: richiede lo stesso identico file verificato;
+  conferma l'importazione soltanto se le tabelle di destinazione non
+  contengono record; in caso di errori esegue rollback.
+
+**Compatibilità di formato:** su Windows l'estensione `.sql` può apparire come
+«Microsoft SQL Server Query File» anche quando il contenuto è MySQL.
+Il file esportato è un dump **MySQL** con estensione `.sql`, non una
+copia binaria `.bak` e non uno script T-SQL eseguibile su SQL Server.
+Si accettano MySQL dump con INSERT e un sottoinsieme di SQL Server con
+INSERT espliciti compatibili. Schema SQL Server distinto (`[dbo].[Shipments]`,
+colonne `business_name`, ecc.), funzioni T-SQL, stored procedure e
+modifiche DDL richiedono una migrazione concordata e non vengono eseguite.
+Non basta rinominare un file `.bak` in `.sql`.
+
+Il vecchio dump MySQL `backup/2025-08-17_18-16-33/database_backup_2025-08-17_18-16-33.sql`
+è incluso nei test automatici per la lettura del formato. Importarlo nel
+database reale è una **scelta separata** dall'importazione di `123.zip`;
+non caricare entrambe le sorgenti come se si potessero sommare.
+Le operazioni di anteprima e ripristino sono limitate a 25 MB/200.000 record
+per file e non eseguono nessun `DROP`, `ALTER`, `DELETE` o SQL arbitrario.
+
+**Correzione prodotti omonimi:** due codici differenti possono avere lo stesso
+modello e nome colore. Il codice prodotto identifica il record; la sola
+combinazione di nomi non è una chiave univoca. Le celle vuote della matrice
+`magazzino.csv` non richiedono associazione a un prodotto. Se la cella
+contiene una quantità ma la coppia modello/colore è ambigua, l'anteprima
+mostra i codici candidati e richiede una fonte con codice esatto.

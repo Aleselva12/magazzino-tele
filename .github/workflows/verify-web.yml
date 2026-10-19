@@ -21,7 +21,7 @@ jobs:
       - name: Python syntax and dependencies
         run: |
           python -m compileall -q web deploy tests/test_web_e2e.py
-          python -m pip install --disable-pip-version-check openpyxl==3.1.5
+          python -m pip install --disable-pip-version-check openpyxl==3.1.5 xlrd==2.0.2 flask==3.1.1 mysql-connector-python==9.3.0
       - name: Generate empty dependency-ordered schema
         run: |
           python deploy/prepare_schema.py
@@ -48,6 +48,7 @@ jobs:
         run: |
           python deploy/reconcile_schema.py
           python tests/test_web_e2e.py
+          python tests/test_sql_backup_e2e.py
       - name: Container logs on failure
         if: failure()
         run: docker compose --env-file deploy/.env -f deploy/compose.yml logs --tail=75

@@ -135,3 +135,6 @@ app.register_blueprint(import_bp)
 
 from dev_reset import bp as reset_bp
 app.register_blueprint(reset_bp)
+
+from sql_backup import bp as sql_backup_bp
+app.register_blueprint(sql_backup_bp)

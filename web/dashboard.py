@@ -74,6 +74,14 @@ th{background:#e8eff6;white-space:nowrap}
 <button type="button" onclick="previewImport()">Controlla file</button>
 <button type="button" class="primary" onclick="applyImport()">Importa dopo verifica</button></form>
 <pre id="importPreview" style="white-space:pre-wrap"></pre></section>
+<section id="sqlBackup" class="hidden"><h2>Backup database SQL</h2>
+<p class="secondary">Scarica un file <strong>database-backup.sql</strong> con le sette tabelle e tutti i loro record. Il file contiene dati aziendali: conservarlo sul PC, non pubblicarlo su GitHub.</p>
+<div class="tools"><button class="primary" onclick="downloadSQL()">Scarica backup SQL (.sql)</button></div>
+<h3>Ripristina da un file SQL</h3>
+<p class="secondary">Accettiamo i dump MySQL .sql e le query di inserimento con colonne compatibili, anche quando Windows le chiama «Microsoft SQL Server Query File». Non eseguiamo script arbitrari e non sostituiamo tabelle già popolate. La sintassi T-SQL non compatibile sarà segnalata.</p>
+<div class="tools"><input type="file" id="sqlFile" accept=".sql" onchange="sqlReceipt=null"><button onclick="previewSQL()">Verifica backup SQL</button><button class="primary" onclick="restoreSQL()">Importa backup dopo verifica</button></div>
+<pre id="sqlSummary" style="white-space:pre-wrap;overflow:auto;max-height:380px"></pre>
+</section>
 <section id="devReset" class="hidden"><h2>Test temporanei del gestionale</h2><p>Questa funzione riguarda soltanto Magazzino Tele. Prima di svuotare le tabelle salva una copia privata sul server.</p><button onclick="resetTele()">Cancella tutta la memoria</button></section><section id="detail" class="hidden"><h2>Dettaglio ordine</h2><div id="detailText"></div>
 <div class="tools"><button onclick="markOrder(true)">Segna evaso</button>
 <button onclick="markOrder(false)">Riapri ordine</button><button onclick="navigate('orders')">Torna agli ordini</button></div>
@@ -81,7 +89,7 @@ th{background:#e8eff6;white-space:nowrap}
 </main>
 <script>
 const views=[['home','Menu principale'],['new','Crea nuovo ordine'],['orders','Gestisci ordini'],
- ['customers','Gestisci clienti'],['inventory','Gestisci inventario'],['catalog','Anagrafiche'],['import','Importa Excel']];
+ ['customers','Gestisci clienti'],['inventory','Gestisci inventario'],['catalog','Anagrafiche'],['import','Importa Excel'],['sqlBackup','Backup SQL']];
 let catalog={customers:[],colors:[],models:[],products:[]},lines=[],stock=[],orderPage=0,currentOrder=null;
 const $=id=>document.getElementById(id);
 const text=(el,v)=>el.textContent=v==null?'':String(v);
@@ -101,6 +109,7 @@ function navigate(view){views.forEach(([id])=>$(id).classList.toggle('hidden',id
 views.forEach(([id,label])=>{let b=button(label,()=>navigate(id));b.dataset.view=id;$('nav').appendChild(b)});
 views.filter(x=>!['home','catalog','import'].includes(x[0])).forEach(([id,label])=>$('tiles').appendChild(button(label,()=>navigate(id))));
 $('tiles').appendChild(button('Importa Excel',()=>navigate('import')));
+$('tiles').appendChild(button('Backup SQL',()=>navigate('sqlBackup')));
 function choice(select,items,label,id){select.replaceChildren();for(const item of items){let o=document.createElement('option');o.value=id(item);text(o,label(item));select.appendChild(o)}}
 function renderCustomerChoices(){const kind=$('orderKind').value;choice($('orderCustomer'),
  catalog.customers.filter(c=>!c.kind||c.kind===kind),c=>c.code+' — '+c.name,c=>c.code)}
@@ -175,6 +184,34 @@ async function applyImport(){if(!verifiedImport){setMessage('Esegui prima il con
  if(!confirm('Importare i file nel database? Nessun dato esistente verrà sovrascritto.'))return;
  try{await sendFiles(true);verifiedImport=false;await loadCatalog();setMessage('Importazione completata')}
  catch(e){setMessage(e.message)}}
+
+let sqlReceipt=null;
+function downloadSQL(){
+ window.location.href='/api/workflow/sql-backup/export';
+}
+async function sendSQL(apply){
+ const file=$('sqlFile').files[0];
+ if(!file){setMessage('Seleziona un file .sql');return}
+ const form=new FormData();form.append('file',file);
+ if(apply&&sqlReceipt)form.append('preview_token',sqlReceipt);
+ const response=await fetch('/api/workflow/sql-backup/'+(apply?'import':'preview'),{method:'POST',body:form});
+ const data=await response.json();
+ if(!response.ok)throw Error(data.error||'Il backup SQL non è compatibile');
+ text($('sqlSummary'),JSON.stringify(data,null,2));
+ return data;
+}
+async function previewSQL(){
+ try{const result=await sendSQL(false);sqlReceipt=result.preview_token;
+ setMessage('Anteprima SQL riuscita: controlla le tabelle e il numero di record. Nessun dato modificato.');
+ }catch(e){sqlReceipt=null;setMessage('Verifica backup: '+e.message)}
+}
+async function restoreSQL(){
+ if(!sqlReceipt){setMessage('Prima usa Verifica backup SQL');return}
+ if(!confirm('Confermi l’importazione SQL nelle tabelle attualmente vuote?'))return;
+ try{const result=await sendSQL(true);sqlReceipt=null;await loadCatalog();
+ setMessage('Backup SQL importato: '+result.total+' righe.');}
+ catch(e){setMessage('Ripristino annullato: '+e.message)}
+}
 
 async function loadResetStatus(){
  try {const r=await api('workflow/dev-reset/status');$('devReset').classList.toggle('hidden',!r.enabled)}
