@@ -21,12 +21,12 @@ def workbook(*records):
     wb.save(buf)
     return buf.getvalue()
 
-def upload(filename,raw,day="2026-10-20",token=None):
+def upload(filename,raw,day="2026-10-20",token=None,partial=False):
     def part(key,value,filename=None):
         head=f"--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{key}\""
         if filename:head+=f"; filename=\"{filename}\""
         return (head+"\r\n\r\n").encode()+value+b"\r\n"
-    body=part("date",day.encode())+part("files",raw,filename)
+    body=part("date",day.encode())+part("allow_partial",b"true" if partial else b"false")+part("files",raw,filename)
     if token:body+=part("preview_token",token.encode())
     body+=(f"--{BOUNDARY}--\r\n").encode()
     path="/api/workflow/color-orders/"+("apply" if token else "preview")
@@ -79,6 +79,19 @@ def main():
     except HTTPError as e:
         assert e.code==422
     assert fetch("/api/workflow/orders")["total"]==2
+    # Optional partial batch imports only complete lines; no dummy records.
+    mixed=workbook(
+       [None,"CLIENTE PROVA PARZIALE", "M002", 7,"TELE MODELLO PARZIALE",None,None,None,None],
+       [None,"CLIENTE NON IMPORTABILE", "M003", 9,None,None,None,None,None],
+    )
+    review=upload("VERDE MARINO.xls",mixed,partial=True)
+    assert review["validated"] and review["blocked"],review
+    assert review["totals"]["orders"]==1,review
+    final=upload("VERDE MARINO.xls",mixed,token=review["preview_token"],partial=True)
+    assert final["imported"] and final["totals"]["orders"]==1
+    after=fetch("/api/workflow/catalog")
+    assert not any("NON IMPORTABILE" in c["name"] for c in after["customers"])
+    assert fetch("/api/workflow/orders")["total"]==3
     print("Legacy XLS -> customer, color, model, product, order, mandatory IDs, idempotence and validation: PASS")
 
 if __name__=="__main__":
