@@ -49,3 +49,35 @@ Docker volume magazzino-tele_tele_mysql  # MySQL persistente autonomo
 ```
 
 Non passare credenziali di Tele a Cora e non montare i volumi Tele nei container Cora. Per ora l'accesso remoto è limitato al browser via Tailscale. HTTP non offre cifratura end-to-end oltre il trasporto Tailscale; se un giorno serve accesso esterno alla tailnet, rivalutare HTTPS e autenticazione.
+
+
+## Correzione avvio MySQL: permessi initdb
+
+Se i log riportano `ls: cannot open directory '/docker-entrypoint-initdb.d/': Permission denied`,
+la versione iniziale montava `deploy/init/` come directory host read-only. Su Debian,
+un permesso insufficiente sul percorso montato rendeva MySQL inutilizzabile.
+
+Il Dockerfile `deploy/init/Dockerfile` inserisce ora il file generato
+`01-schema.sql` direttamente nell'immagine MySQL. **Non usare un mount**
+`./init:/docker-entrypoint-initdb.d`, non serve più.
+
+Dopo il merge, sul Debian già clonato:
+
+```bash
+cd /srv/apps/magazzino-tele
+git status --short
+git pull --ff-only origin master
+test -s deploy/init/01-schema.sql || python3 deploy/prepare_schema.py
+docker compose --env-file deploy/.env -f deploy/compose.yml config --quiet
+docker compose --env-file deploy/.env -f deploy/compose.yml up -d --build --wait
+docker compose --env-file deploy/.env -f deploy/compose.yml ps
+```
+
+**Non eseguire `docker compose down -v` né cancellare il volume del database.**
+Se l'inizializzazione MySQL è avvenuta soltanto in parte, il primo volume potrebbe
+non ricevere nuovamente gli script DDL: verificare `SHOW TABLES`, stato e log.
+In quel caso serve una procedura di recupero specifica dopo aver verificato che
+il volume non contenga dati. Nessuna re-inizializzazione automatica è prevista.
+
+Lo schema SQL generato rimane fuori da Git e viene copiato nell'immagine durante
+il build; la password MySQL continua a essere letta dal file privato `deploy/.env`.
