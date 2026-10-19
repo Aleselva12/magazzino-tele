@@ -1,33 +1,54 @@
-name: Verify standalone web service
+name: Verify standalone web and MySQL
 on:
-  push:
-    branches: [feat/web-tailscale-debian]
   pull_request:
-    paths: ['web/**','deploy/**','.github/workflows/verify-web.yml']
+    paths: ['web/**','deploy/**','tests/**','.github/workflows/verify-web.yml']
+  push:
+    branches: [master]
 jobs:
-  python:
+  integration:
     runs-on: ubuntu-latest
+    env:
+      TELE_DB_PASSWORD: ci_password_not_real
+      TELE_ROOT_PASSWORD: ci_root_password_not_real
+      TELE_TAILSCALE_IP: 127.0.0.1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Syntax
-        run: python -m compileall -q web/app.py deploy/prepare_schema.py
-      - name: Check schema extraction from committed historical backup
+      - name: Python syntax and dependencies
+        run: |
+          python -m compileall -q web deploy tests/test_web_e2e.py
+          python -m pip install --disable-pip-version-check openpyxl==3.1.5
+      - name: Generate empty dependency-ordered schema
         run: |
           python deploy/prepare_schema.py
           python - <<'PY'
           from pathlib import Path
-          import re
-          text = Path('deploy/init/01-schema.sql').read_text()
-          assert len(re.findall(r'(?im)^CREATE TABLE', text)) == 7
-          assert not re.search(r'(?im)^\s*INSERT INTO', text)
-          print('Schema-only: 7 tables, 0 row inserts')
+          from deploy.prepare_schema import ORDER
+          text=Path("deploy/init/01-schema.sql").read_text()
+          assert text.count("CREATE TABLE") == 7
+          assert "INSERT INTO" not in text
+          assert [line.split(chr(96))[1] for line in text.splitlines()
+                  if line.startswith("CREATE TABLE")] == list(ORDER)
+          print("DDL-only / seven dependency ordered tables: PASS")
           PY
-      - name: Docker compose syntax
-        env:
-          TELE_DB_PASSWORD: dummy_ci_only
-          TELE_ROOT_PASSWORD: dummy_ci_only_different
-          TELE_TAILSCALE_IP: 127.0.0.1
-        run: docker compose -f deploy/compose.yml config --quiet
+      - name: Disposable host config
+        run: |
+          printf 'TELE_DB_PASSWORD=%s\nTELE_ROOT_PASSWORD=%s\nTELE_TAILSCALE_IP=%s\n' \
+            "$TELE_DB_PASSWORD" "$TELE_ROOT_PASSWORD" "$TELE_TAILSCALE_IP" > deploy/.env
+          chmod 600 deploy/.env
+          docker compose --env-file deploy/.env -f deploy/compose.yml config --quiet
+      - name: Start test database and web
+        run: |
+          docker compose --env-file deploy/.env -f deploy/compose.yml up -d --build --wait
+      - name: Database schema verified and web workflows
+        run: |
+          python deploy/reconcile_schema.py
+          python tests/test_web_e2e.py
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose --env-file deploy/.env -f deploy/compose.yml logs --tail=75
+      - name: Stop disposable environment
+        if: always()
+        run: docker compose --env-file deploy/.env -f deploy/compose.yml down -v

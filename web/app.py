@@ -7,6 +7,7 @@ from werkzeug.exceptions import HTTPException
 import mysql.connector
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 TABLES = {
     "clienti": "customers", "colori": "schema colori semplice",
     "modelli": "modelli", "prodotti": "prodotti_completi",
@@ -173,4 +174,10 @@ load();
 
 @app.get("/")
 def home():
-    return render_template_string(PAGE)
+    from dashboard import PAGE as DASHBOARD
+    return render_template_string(DASHBOARD)
+
+from workflow import bp as workflow_bp
+from excel_import import bp as import_bp
+app.register_blueprint(workflow_bp)
+app.register_blueprint(import_bp)
