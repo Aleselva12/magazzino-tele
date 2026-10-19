@@ -163,8 +163,21 @@ def parse_sources(parts, metadata):
     for name,raw in parts:
         stem = name.rsplit(".",1)[0].lower().strip()
         table = ALIASES.get(stem)
-        # All the stock-by-color XLS templates are recognized, *not* silently imported.
+        # Inspect the format of unstructured legacy workbooks as well: a corrupt
+        # .xls should be reported as unreadable, not silently accepted.
         if table is None:
+            if name.lower().endswith(".xls"):
+                try:
+                    wb = xlrd.open_workbook(file_contents=raw, on_demand=True)
+                    ws = wb.sheet_by_index(0)
+                    if ws.nrows > MAX_ROWS + 1 or ws.ncols > 100:
+                        raise ValueError("Foglio troppo grande")
+                    shape = f" ({ws.nrows} righe, {ws.ncols} colonne)"
+                    wb.release_resources()
+                except (xlrd.XLRDError, ValueError, IndexError) as e:
+                    raise ValueError("Il file XLS non è leggibile: " + name + " — " + str(e)[:90])
+                extra.append((name,"Scheda colore XLS leggibile"+shape+"; non è una tabella MySQL e non viene convertita arbitrariamente in giacenze."))
+                continue
             if stem == "0001 magazzino tele schema colori":
                 extra.append((name,"Mappa colori estesa: 143 voci con codici duplicati/non numerici. Richiede normalizzazione prima di unirla all'anagrafica relazionale."))
             elif stem in ("prodotti","00123.xls"):
