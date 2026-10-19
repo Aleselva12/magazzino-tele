@@ -330,9 +330,10 @@ def plan_import(candidates,issues,summaries,existing,registration_date):
     }
     return inserted,preview
 
-def digest_plan(raw_digest,day,preview):
+def digest_plan(raw_digest,day,preview,operations):
     shape=json.dumps({"digest":raw_digest,"day":day,"counts":preview["totals"],
-                      "skipped":preview["already_imported"],"warn":preview["warnings"]},
+                      "skipped":preview["already_imported"],"warn":preview["warnings"],
+                      "operations":operations},
                      sort_keys=True,ensure_ascii=False)
     return hashlib.sha256(shape.encode()).hexdigest()
 
@@ -366,7 +367,7 @@ def import_workbooks():
             if not locked:abort(409,"Ordini in fase di aggiornamento, riprova")
         catalog=read_catalog(conn)
         operations,preview=plan_import(candidates,issues,summaries,catalog,registration_date)
-        checksum=digest_plan(digest,registration_date,preview)
+        checksum=digest_plan(digest,registration_date,preview,operations)
         checksum=hashlib.sha256((checksum+"|partial="+str(allow_partial)).encode()).hexdigest()
         preview["validated"]=(not issues or allow_partial) and preview["totals"]["orders"]>0
         preview["partial_mode"]=allow_partial
