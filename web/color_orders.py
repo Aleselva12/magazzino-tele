@@ -306,6 +306,16 @@ def plan_import(candidates,issues,summaries,existing,registration_date):
         inserted["orders"].append((next_order,registration_date,custcode,int(rec["evaso"]),rec["tag"],kind))
         inserted["lines"].append((next_line,product_code,next_order,rec["quantity"],rec["scritta"],"",0))
         tags.add(rec["tag"])
+    # Do not leave orphan anagraphic records behind when a source row
+    # cannot become a valid order (particularly with partial import).
+    used_customers={row[2] for row in inserted["orders"]}
+    used_products={row[1] for row in inserted["lines"]}
+    inserted["customers"]=[r for r in inserted["customers"] if r[0] in used_customers]
+    inserted["products"]=[r for r in inserted["products"] if r[0] in used_products]
+    used_models={r[1] for r in inserted["products"]}
+    used_colors={r[3] for r in inserted["products"]}
+    inserted["models"]=[r for r in inserted["models"] if r[0] in used_models]
+    inserted["colors"]=[r for r in inserted["colors"] if r[0] in used_colors]
     preview={
       "totals":{k:len(v) for k,v in inserted.items()},
       "already_imported":duplicate,
@@ -336,6 +346,7 @@ def import_workbooks():
         abort(400,"Indicare una data di registrazione valida")
     if request.content_length and request.content_length>80*1024*1024:
         abort(413,"Massimo 80 MB per invio")
+    allow_partial=request.form.get("allow_partial")=="true"
     if not request.files.getlist("files"):abort(400,"Seleziona i file Excel")
     parts,digest=upload_parts(request.files.getlist("files"))
     try:
@@ -356,7 +367,9 @@ def import_workbooks():
         catalog=read_catalog(conn)
         operations,preview=plan_import(candidates,issues,summaries,catalog,registration_date)
         checksum=digest_plan(digest,registration_date,preview)
-        preview["validated"]=not bool(issues) and preview["totals"]["orders"]>0
+        checksum=hashlib.sha256((checksum+"|partial="+str(allow_partial)).encode()).hexdigest()
+        preview["validated"]=(not issues or allow_partial) and preview["totals"]["orders"]>0
+        preview["partial_mode"]=allow_partial
         preview["blocked"]=bool(issues)
         if do_apply:
             if issues:
