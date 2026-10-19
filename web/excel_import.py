@@ -192,9 +192,13 @@ def parse_sources(parts, metadata):
             entries=[[row[code],row[color]] for row in rows]
             if table in sources:
                 prev=sources[table][1]
-                if {(str(a).strip(),str(b).strip()) for a,b in entries} != {(str(a).strip(),str(b).strip()) for a,b in prev}:
-                    raise ValueError("Le due anagrafiche colori non coincidono; caricane una sola.")
-                notices.append("Due elenchi colori equivalenti: il secondo è stato ignorato.")
+                same = {(str(a).strip(),str(b).strip()) for a,b in entries} == {(str(a).strip(),str(b).strip()) for a,b in prev}
+                if not same:
+                    notices.append("ATTENZIONE: i due elenchi colori hanno codici discordanti. Uso 'schema colori semplice.csv', coerente con prodotti_completi.csv.")
+                else:
+                    notices.append("Due elenchi colori equivalenti: il secondo viene ignorato.")
+                if stem == "schema colori semplice":
+                    sources[table]=("rows",entries,name)
                 continue
             sources[table]=("rows",entries,name)
             continue
