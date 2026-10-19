@@ -204,7 +204,7 @@ async function uploadColorOrders(apply){
  let result;
  try{result=await response.json()}catch(e){throw Error('Il servizio non ha restituito una risposta valida')}
  if(!response.ok)throw Error(result.error||result.message||'Caricamento fallito');
- text($('colorOrderPreview'),JSON.stringify({nuove_anagrafiche_e_ordini:result.totals,
+ text($('colorOrderPreview'),JSON.stringify({nuove_anagrafiche_e_ordini:result.totals,chiavi_generate:result.new_entities,
   gia_importati:result.already_imported,problemi:result.warnings_count,
   segnalazioni:result.warnings,esempi:result.examples,
   file_analizzati:result.source_files,data:result.registration_date},null,2));
@@ -214,7 +214,7 @@ async function previewColorOrders(){
  try{setMessage('');const r=await uploadColorOrders(false);
   colorToken=r.preview_token||null;
   $('colorApply').disabled=!r.validated||!colorToken;
-  setMessage(r.blocked?(r.validated?'Alcune righe non sono utilizzabili: saranno escluse. Controlla i problemi prima di procedere.':'Anteprima con problemi: correggi o isola i file, oppure abilita la modalità prova. Nessun dato modificato.'):
+  setMessage(!r.totals.orders?'Nessun ordine nuovo riconosciuto: il file potrebbe essere già importato.':r.blocked?(r.validated?'Alcune righe non sono utilizzabili: saranno escluse. Controlla i problemi prima di procedere.':'Anteprima con problemi: correggi o isola i file, oppure abilita la modalità prova. Nessun dato modificato.'):
   'Anteprima pronta: controlla i clienti, i modelli, i colori e i conteggi prima della conferma. Nessun dato modificato.');
  }catch(e){clearColorPreview();setMessage(e.message)}
 }
