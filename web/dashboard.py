@@ -175,5 +175,22 @@ async function applyImport(){if(!verifiedImport){setMessage('Esegui prima il con
  if(!confirm('Importare i file nel database? Nessun dato esistente verrà sovrascritto.'))return;
  try{await sendFiles(true);verifiedImport=false;await loadCatalog();setMessage('Importazione completata')}
  catch(e){setMessage(e.message)}}
-void loadCatalog();navigate('home');
+
+async function loadResetStatus(){
+ try {const r=await api('workflow/dev-reset/status');$('devReset').classList.toggle('hidden',!r.enabled)}
+ catch(e){$('devReset').classList.add('hidden')}
+}
+async function resetTele(){
+ const phrase='CANCELLA MAGAZZINO TELE';
+ if(prompt('Vuoi azzerare solo i dati di Magazzino Tele? Verrà salvato un backup. Digita '+phrase)!==phrase)return;
+ const code=prompt('Codice temporaneo di manutenzione:');if(!code)return;
+ if(!confirm('Confermi la cancellazione di clienti, ordini, prodotti e giacenze dal solo gestionale Tele?'))return;
+ try{
+  const r=await api('workflow/dev-reset',{method:'POST',headers:{'Content-Type':'application/json','X-Dev-Reset-Token':code},
+   body:JSON.stringify({confirm:phrase})});
+  await loadCatalog();navigate('home');
+  setMessage('Test ripristinato. Record rimossi: '+r.rows_removed+'. Copia privata: '+r.backup);
+ }catch(e){setMessage('Operazione annullata: '+e.message)}
+}
+void loadCatalog();void loadResetStatus();navigate('home');
 </script></body></html>"""
