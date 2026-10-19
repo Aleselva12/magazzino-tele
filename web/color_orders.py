@@ -374,7 +374,7 @@ def import_workbooks():
         preview["partial_mode"]=allow_partial
         preview["blocked"]=bool(issues)
         if do_apply:
-            if issues:
+            if issues and not allow_partial:
                 abort(409,"Importazione bloccata: correggi le righe segnalate nell'anteprima")
             if not validate_receipt(request.form.get("preview_token"),checksum):
                 abort(409,"Anteprima scaduta o database modificato: esegui di nuovo Controlla file")
