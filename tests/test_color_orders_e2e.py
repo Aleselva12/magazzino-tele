@@ -31,7 +31,11 @@ def upload(filename,raw,day="2026-10-20",token=None,partial=False):
     body+=(f"--{BOUNDARY}--\r\n").encode()
     path="/api/workflow/color-orders/"+("apply" if token else "preview")
     req=Request(BASE+path,method="POST",data=body,headers={"Content-Type":"multipart/form-data; boundary="+BOUNDARY})
-    with urlopen(req,timeout=60) as res:return json.load(res)
+    try:
+        with urlopen(req,timeout=60) as res:return json.load(res)
+    except HTTPError as e:
+        print('Color workbook endpoint rejected request:',e.code,e.read().decode('utf-8','replace')[:700])
+        raise
 
 def fetch(path):
     with urlopen(BASE+path,timeout=30) as r:return json.load(r)
