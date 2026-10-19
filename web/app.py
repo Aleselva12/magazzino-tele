@@ -138,3 +138,6 @@ app.register_blueprint(reset_bp)
 
 from sql_backup import bp as sql_backup_bp
 app.register_blueprint(sql_backup_bp)
+
+from color_orders import bp as color_orders_bp
+app.register_blueprint(color_orders_bp)

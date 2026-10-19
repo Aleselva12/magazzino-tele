@@ -70,6 +70,20 @@ th{background:#e8eff6;white-space:nowrap}
 <div class="scroll"><table><tbody id="catalogRows"></tbody></table></div></section>
 <section id="import" class="hidden"><h2>Importazione CSV, XLS, XLSX e ZIP</h2><p>Carica i file Excel delle anagrafiche tramite la funzione di importazione controllata. Nessun dato viene importato automaticamente da GitHub.</p>
 <p id="importGuide" class="secondary">Ordine di caricamento: clienti, modelli, colori, prodotti, ordini, magazzino, righe ordine.</p>
+<div style="border:1px solid #c6d6e3;border-radius:8px;padding:16px;margin:4px 0 24px;background:#f7fafc">
+<h3>Da schede colore Excel a ordini</h3>
+<p>Carica uno o più file per colore <strong>.xls / .xlsx</strong>, oppure <strong>excel.zip</strong>. La procedura riconosce gli ordini con quantità positiva, cerca clienti, colori e prodotti già registrati e prepara le nuove anagrafiche con codici obbligatori. Le quantità negative e le formule delle disponibilità non sono ordini.</p>
+<div class="tools">
+<label>Data di registrazione <input type="date" id="workbookDate"></label>
+<input type="file" id="colorOrderFiles" accept=".xls,.xlsx,.zip" multiple>
+<button onclick="previewColorOrders()">1. Controlla ordini</button>
+<button id="colorApply" disabled class="primary" onclick="applyColorOrders()">2. Conferma e importa</button>
+</div>
+<label class="field" style="display:flex;align-items:center;gap:8px;margin:10px 0"><input type="checkbox" id="colorPartial" style="width:auto">Modalità prova: importa soltanto gli ordini completi, segnalando quelli che richiedono correzioni</label>
+<p class="secondary">Le intestazioni sono Cod.Cli., NOME, IMP., Q.TA e DESCRITTIVA, oppure MODELLO / CLIENTI / Q.TA. Per i nuovi modelli verrà utilizzata la descrizione esatta degli Excel: controlla l'anteprima. La data DATA EVAS. non viene scambiata per la data dell'ordine.</p>
+<pre id="colorOrderPreview" style="white-space:pre-wrap;max-height:480px;overflow:auto"></pre>
+</div>
+<h3>Carica anagrafiche iniziali (CSV/Excel/ZIP)</h3>
 <form id="importForm"><input type="file" id="excelFiles" accept=".csv,.xls,.xlsx,.zip" multiple>
 <button type="button" onclick="previewImport()">Controlla file</button>
 <button type="button" class="primary" onclick="applyImport()">Importa dopo verifica</button></form>
@@ -170,6 +184,49 @@ function renderInventory(){let q=$('stockSearch').value.toLowerCase(),tbody=$('s
  tbody.appendChild(tr)}}
 function showCatalog(which){let tbody=$('catalogRows');tbody.replaceChildren();
  for(const item of catalog[which]||[]){let tr=document.createElement('tr');Object.values(item).forEach(v=>cell(tr,v));tbody.appendChild(tr)}}
+
+let colorToken=null;
+$('workbookDate').value=new Date().toLocaleDateString('sv-SE');
+function clearColorPreview(){colorToken=null;$('colorApply').disabled=true;text($('colorOrderPreview'),'')}
+$('colorOrderFiles').addEventListener('change',clearColorPreview);
+$('workbookDate').addEventListener('change',clearColorPreview);
+$('colorPartial').addEventListener('change',clearColorPreview);
+async function uploadColorOrders(apply){
+ const files=$('colorOrderFiles').files;
+ if(!files.length)throw Error('Seleziona almeno un file Excel per colore');
+ if(!$('workbookDate').value)throw Error('Seleziona la data di registrazione');
+ const form=new FormData();
+ form.append('date',$('workbookDate').value);
+ form.append('allow_partial',$('colorPartial').checked?'true':'false');
+ for(const file of files)form.append('files',file);
+ if(apply)form.append('preview_token',colorToken||'');
+ const response=await fetch('/api/workflow/color-orders/'+(apply?'apply':'preview'),{method:'POST',body:form});
+ let result;
+ try{result=await response.json()}catch(e){throw Error('Il servizio non ha restituito una risposta valida')}
+ if(!response.ok)throw Error(result.error||result.message||'Caricamento fallito');
+ text($('colorOrderPreview'),JSON.stringify({nuove_anagrafiche_e_ordini:result.totals,chiavi_generate:result.new_entities,
+  gia_importati:result.already_imported,problemi:result.warnings_count,
+  segnalazioni:result.warnings,esempi:result.examples,
+  file_analizzati:result.source_files,data:result.registration_date},null,2));
+ return result;
+}
+async function previewColorOrders(){
+ try{setMessage('');const r=await uploadColorOrders(false);
+  colorToken=r.preview_token||null;
+  $('colorApply').disabled=!r.validated||!colorToken;
+  setMessage(!r.totals.orders?'Nessun ordine nuovo riconosciuto: il file potrebbe essere già importato.':r.blocked?(r.validated?'Alcune righe non sono utilizzabili: saranno escluse. Controlla i problemi prima di procedere.':'Anteprima con problemi: correggi o isola i file, oppure abilita la modalità prova. Nessun dato modificato.'):
+  'Anteprima pronta: controlla i clienti, i modelli, i colori e i conteggi prima della conferma. Nessun dato modificato.');
+ }catch(e){clearColorPreview();setMessage(e.message)}
+}
+async function applyColorOrders(){
+ if(!colorToken) {setMessage('Prima controlla gli Excel');return}
+ if(!confirm('Confermi la creazione degli ordini e delle anagrafiche mostrate nell’anteprima? Questa operazione modifica il database Magazzino Tele.'))return;
+ $('colorApply').disabled=true;
+ try{const r=await uploadColorOrders(true);colorToken=null;
+  await loadCatalog();setMessage('Importazione effettuata: '+r.totals.orders+' ordini nuovi, '+r.already_imported+' già presenti.');}
+ catch(e){setMessage('Importazione non effettuata: '+e.message)}
+}
+
 let verifiedImport=false,previewToken=null;
 $('excelFiles').addEventListener('change',()=>{verifiedImport=false;previewToken=null;text($('importPreview'),'')});
 async function sendFiles(apply){const files=$('excelFiles').files;if(!files.length){setMessage('Seleziona i file Excel');return}
