@@ -26,6 +26,10 @@ services:
       TELE_DB_NAME: magazzino_tele
       TELE_DB_USER: tele
       TELE_DB_PASSWORD: ${TELE_DB_PASSWORD:?Missing}
+      TELE_DEV_RESET_ENABLED: ${TELE_DEV_RESET_ENABLED:-false}
+      TELE_DEV_RESET_TOKEN: ${TELE_DEV_RESET_TOKEN:-}
+    volumes:
+      - tele_reset_backups:/private-backups
     depends_on:
       db:
         condition: service_healthy
@@ -37,4 +41,5 @@ services:
       timeout: 5s
       retries: 3
 volumes:
+  tele_reset_backups:
   tele_mysql:
