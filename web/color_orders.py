@@ -46,7 +46,8 @@ def color_from_filename(filename):
     stem = PurePath(filename).stem.strip()
     match = re.match(r"^(?:(?:MEL|CORTI|FABBRI|RAMBERTI)\s+)?(?:0*(\d{2,6}))[\s._-]+(.+)$", stem, re.I)
     if match:
-        return int(match.group(1)), name_key(match.group(2))
+        source_code=int(match.group(1))
+        return (source_code if source_code>0 else None), name_key(match.group(2))
     return None, name_key(stem)
 
 def sheets(filename, raw):
