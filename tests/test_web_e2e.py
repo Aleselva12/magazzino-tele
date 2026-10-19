@@ -75,8 +75,25 @@ def main():
     assert call("/api/workflow/orders")["evasi"]==1
     call("/api/workflow/inventory/1-8","PATCH",{"quantity":12})
     assert any(row["quantity"]==12 for row in call("/api/workflow/inventory")["rows"])
-    # Reset is disabled by default and must never be exposed on production.
-    assert call("/api/workflow/dev-reset/status")["enabled"] is False
+    # Development reset: reject an unauthorized request, then create a backup,
+    # transactionally clear only this disposable Tele database.
+    assert call("/api/workflow/dev-reset/status")["enabled"] is True
+    from urllib.error import HTTPError
+    reset_body=json.dumps({"confirm":"CANCELLA MAGAZZINO TELE"}).encode()
+    try:
+        urlopen(Request(URL+"/api/workflow/dev-reset",method="POST",data=reset_body,
+            headers={"Content-Type":"application/json","X-Dev-Reset-Token":"bad"}),timeout=20)
+        raise AssertionError("Dev reset accepted incorrect token")
+    except HTTPError as e:
+        assert e.code==403
+    req=Request(URL+"/api/workflow/dev-reset",method="POST",data=reset_body,
+        headers={"Content-Type":"application/json",
+                 "X-Dev-Reset-Token":"ci_only_reset_key_for_disposable_database_123456"})
+    with urlopen(req,timeout=60) as res:status=json.load(res)
+    assert status["reset"] and status["rows_removed"] >= 4,status
+    assert call("/api/workflow/catalog")["customers"] == []
+    assert call("/api/workflow/catalog")["products"] == []
+    print("Dev reset with pre-delete backup: PASS")
     print("E2E Excel XLSX + ZIP CSV + BOM + divergent colors + empty stock + orders: PASS")
 
 if __name__=="__main__":main()
