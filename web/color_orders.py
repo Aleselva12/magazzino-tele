@@ -221,9 +221,10 @@ def plan_import(candidates,issues,summaries,existing,registration_date):
                 custcode=supplied
                 digit=int(supplied[1:])
                 next_client=max(next_client,digit)
-                customers[custcode]=("C",digit,cname)
+                customer_type="F" if custcode.startswith("F") else "C"
+                customers[custcode]=(customer_type,digit,cname)
                 by_name[cname].add(custcode)
-                inserted["customers"].append((custcode,"C",digit,cname))
+                inserted["customers"].append((custcode,customer_type,digit,cname))
         else:
             options=by_name.get(cname,set())
             if len(options)>1:
