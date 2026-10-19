@@ -1,0 +1,33 @@
+name: Verify standalone web service
+on:
+  push:
+    branches: [feat/web-tailscale-debian]
+  pull_request:
+    paths: ['web/**','deploy/**','.github/workflows/verify-web.yml']
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Syntax
+        run: python -m compileall -q web/app.py deploy/prepare_schema.py
+      - name: Check schema extraction from committed historical backup
+        run: |
+          python deploy/prepare_schema.py
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('deploy/init/01-schema.sql').read_text()
+          assert len(re.findall(r'(?im)^CREATE TABLE', text)) == 7
+          assert not re.search(r'(?im)^\s*INSERT INTO', text)
+          print('Schema-only: 7 tables, 0 row inserts')
+          PY
+      - name: Docker compose syntax
+        env:
+          TELE_DB_PASSWORD: dummy_ci_only
+          TELE_ROOT_PASSWORD: dummy_ci_only_different
+          TELE_TAILSCALE_IP: 127.0.0.1
+        run: docker compose -f deploy/compose.yml config --quiet
