@@ -1,6 +1,7 @@
 """End to end: create new customer, color, model, product, order from XLS templates."""
 import io
 import json
+import zipfile
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 import xlwt
@@ -96,6 +97,19 @@ def main():
     after=fetch("/api/workflow/catalog")
     assert not any("NON IMPORTABILE" in c["name"] for c in after["customers"])
     assert fetch("/api/workflow/orders")["total"]==3
+    # ZIP of multiple color books: independently identify source/color.
+    buff=io.BytesIO()
+    with zipfile.ZipFile(buff,"w") as z:
+        z.writestr("workbook/BLU NOTTE.xls",data)
+        z.writestr("workbook/ORO NUOVO.xls",
+                   workbook([None,"CLIENTE PROVA PARZIALE","M201",2,
+                             "TELE MODELLO PROVA",None,None,None,None]))
+    batch=upload("schede-colore.zip",buff.getvalue(),partial=True)
+    assert batch["validated"] and batch["already_imported"]==2,batch
+    assert batch["totals"]["orders"]==1,batch
+    inserted=upload("schede-colore.zip",buff.getvalue(),token=batch["preview_token"],partial=True)
+    assert inserted["imported"] and inserted["totals"]["orders"]==1
+    assert fetch("/api/workflow/orders")["total"]==4
     print("Legacy XLS -> customer, color, model, product, order, mandatory IDs, idempotence and validation: PASS")
 
 if __name__=="__main__":
