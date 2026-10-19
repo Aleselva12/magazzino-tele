@@ -327,7 +327,13 @@ def plan_import(candidates,issues,summaries,existing,registration_date):
                    "customer":x["customer"],"model":x["model"],"color":x["color"],
                    "quantity":x["quantity"],"impegno":x["reference"]}
                   for x in candidates[:35]],
-      "registration_date":registration_date
+      "registration_date":registration_date,
+      "new_entities":{
+        "customers":[{"code":r[0],"number":r[2],"name":r[3]} for r in inserted["customers"][:100]],
+        "colors":[{"code":r[0],"name":r[1]} for r in inserted["colors"][:100]],
+        "models":[{"code":r[0],"name":r[1]} for r in inserted["models"][:100]],
+        "products":[{"code":r[0],"model_code":r[1],"color_code":r[3]} for r in inserted["products"][:100]]
+      }
     }
     return inserted,preview
 
