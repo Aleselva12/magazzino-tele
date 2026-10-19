@@ -36,6 +36,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true",
                         help="Create only missing tables after non-destructive preflight")
+    parser.add_argument("--require-complete", action="store_true",
+                        help="Read-only health gate; fail if one or more tables are missing")
     args = parser.parse_args()
     expected = definitions(SOURCE)
     existing, counts = query_rows()
@@ -61,6 +63,8 @@ def main():
     if any(counts.values()):
         raise SystemExit("Database già popolato: recupero automatico vietato. Necessaria revisione manuale.")
     print("Tabelle mancanti:", ", ".join(missing))
+    if args.require_complete:
+        raise SystemExit("Schema incompleto; eseguire prima la procedura di recupero")
     if not args.apply:
         print("Solo verifica. Per creare le tabelle mancanti usa --apply.")
         return

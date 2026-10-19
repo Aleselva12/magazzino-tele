@@ -125,7 +125,9 @@ def create_order():
         raise
     finally:
         if locked:
-            try:c.execute("SELECT RELEASE_LOCK('tele_order_identifier')")
+            try:
+                c.execute("SELECT RELEASE_LOCK('tele_order_identifier')")
+                c.fetchone()
             except Exception:pass
         c.close()
         db.close()
