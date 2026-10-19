@@ -79,6 +79,7 @@ th{background:#e8eff6;white-space:nowrap}
 <button onclick="previewColorOrders()">1. Controlla ordini</button>
 <button id="colorApply" disabled class="primary" onclick="applyColorOrders()">2. Conferma e importa</button>
 </div>
+<label class="field" style="display:flex;align-items:center;gap:8px;margin:10px 0"><input type="checkbox" id="colorPartial" style="width:auto">Modalità prova: importa soltanto gli ordini completi, segnalando quelli che richiedono correzioni</label>
 <p class="secondary">Le intestazioni sono Cod.Cli., NOME, IMP., Q.TA e DESCRITTIVA, oppure MODELLO / CLIENTI / Q.TA. Per i nuovi modelli verrà utilizzata la descrizione esatta degli Excel: controlla l'anteprima. La data DATA EVAS. non viene scambiata per la data dell'ordine.</p>
 <pre id="colorOrderPreview" style="white-space:pre-wrap;max-height:480px;overflow:auto"></pre>
 </div>
@@ -189,12 +190,14 @@ $('workbookDate').value=new Date().toLocaleDateString('sv-SE');
 function clearColorPreview(){colorToken=null;$('colorApply').disabled=true;text($('colorOrderPreview'),'')}
 $('colorOrderFiles').addEventListener('change',clearColorPreview);
 $('workbookDate').addEventListener('change',clearColorPreview);
+$('colorPartial').addEventListener('change',clearColorPreview);
 async function uploadColorOrders(apply){
  const files=$('colorOrderFiles').files;
  if(!files.length)throw Error('Seleziona almeno un file Excel per colore');
  if(!$('workbookDate').value)throw Error('Seleziona la data di registrazione');
  const form=new FormData();
  form.append('date',$('workbookDate').value);
+ form.append('allow_partial',$('colorPartial').checked?'true':'false');
  for(const file of files)form.append('files',file);
  if(apply)form.append('preview_token',colorToken||'');
  const response=await fetch('/api/workflow/color-orders/'+(apply?'apply':'preview'),{method:'POST',body:form});
@@ -211,7 +214,7 @@ async function previewColorOrders(){
  try{setMessage('');const r=await uploadColorOrders(false);
   colorToken=r.preview_token||null;
   $('colorApply').disabled=!r.validated||!colorToken;
-  setMessage(r.blocked?'Anteprima con problemi: correggi o isola i file segnalati. Nessun dato modificato.':
+  setMessage(r.blocked?(r.validated?'Alcune righe non sono utilizzabili: saranno escluse. Controlla i problemi prima di procedere.':'Anteprima con problemi: correggi o isola i file, oppure abilita la modalità prova. Nessun dato modificato.'):
   'Anteprima pronta: controlla i clienti, i modelli, i colori e i conteggi prima della conferma. Nessun dato modificato.');
  }catch(e){clearColorPreview();setMessage(e.message)}
 }
