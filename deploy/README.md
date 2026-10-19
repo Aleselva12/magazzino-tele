@@ -285,3 +285,83 @@ combinazione di nomi non è una chiave univoca. Le celle vuote della matrice
 `magazzino.csv` non richiedono associazione a un prodotto. Se la cella
 contiene una quantità ma la coppia modello/colore è ambigua, l'anteprima
 mostra i codici candidati e richiede una fonte con codice esatto.
+
+## Trasferimento degli appunti Excel per colore in ordini (sperimentale)
+
+La pagina **Carica Excel** ha due sezioni separate:
+
+1. **Da schede colore Excel a ordini**: uno o più `.xls` / `.xlsx` oppure
+   archivio ZIP di file-colore; non richiede di cancellare il database.
+   Carica nuovi ordini aggiungendo eventualmente le anagrafiche mancanti.
+2. **Carica anagrafiche iniziali**: resta la procedura separata per
+   `123.zip` e altri CSV relazionali. Non confondere le due operazioni.
+
+La pagina **Backup SQL** resta per esportare o importare backup completi.
+
+### Rilevazione sul materiale storico fornito
+
+In `excel.zip` si trovano circa 147 fogli di lavoro `.xls` per colore.
+I fogli primari hanno colonne `Cod.Cli.`, `NOME`, `IMP.`,
+`Q.TA`, `DESCRITTIVA`, `SCRITTA PARASOLE`, `SCRITTA TELE`,
+`DATA EVAS.`, `EVASO`.
+Altri fogli hanno `MODELLO`, `CLIENTI`, `IMPEGNO`, `Q.TA`.
+Le quantità negative (movimenti in entrata) non generano ordini;
+le formule di disponibilità sono escluse.
+
+Nel primo prototipo ogni riga valida con quantità positiva genera un ordine
+con una riga prodotto. I fogli possono contenere molte righe storiche:
+controllare sempre l'anteprima prima di importare tutto l'archivio.
+
+### Identificativi e collegamenti
+
+- Colore: dal prefisso numerico del file, se presente, oppure dal
+  nome del file confrontato con l'anagrafica. Se il colore non esiste,
+  viene assegnato il successivo codice intero libero.
+- Cliente: `Cod.Cli.` ha priorità; un codice noto deve corrispondere
+  alla stessa anagrafica. In assenza di codice si cerca il nome esatto;
+  se manca viene creato un progressivo `Cxxxxx` e il relativo intero.
+- Modello: viene cercata la descrizione presente in `DESCRITTIVA`
+  o nel campo `MODELLO`. Se mancante si blocca la riga.
+  Se il modello non è noto, se ne crea uno con codice progressivo.
+  **La DESCRITTIVA potrebbe rappresentare una variante anziché il
+  modello commerciale:** prima del collaudo definitivo riconciliare
+  i nomi creati con il catalogo effettivo.
+- Prodotto: coppia univoca di *codici* modello/colore; non dedurre
+  unicità soltanto dai nomi. Se assente viene creato un codice
+  prodotto valido fino a 10 caratteri e con entrambe le FK.
+- Ordine: codice numerico progressivo, data di registrazione esplicita,
+  codice cliente, stato evaso e riferimento tecnico di provenienza.
+  Righe d'ordine con id progressivo, prodotto, quantità positiva e
+  pronto valorizzato.
+- La data `DATA EVAS.` dei file non è necessariamente la data ordine:
+  **non** viene assegnata automaticamente. L'utente sceglie la data
+  di registrazione nell'interfaccia.
+- Il campo `codice ordine prodotto` degli ordini importati contiene
+  il riferimento tecnico `XL:` del file/foglio/riga (più una parte
+  di `IMP.`), per ignorare la stessa riga se ricaricata.
+  Righe spostate o file rinominati potrebbero essere interpretati
+  come nuovi ordini: in caso di riorganizzazione degli Excel serve
+  un controllo preventivo.
+
+### Prima prova raccomandata
+
+1. Da Debian creare un backup privato Tele: `python3 deploy/backup_mysql.py`.
+2. Aggiornare il solo repository `magazzino-tele` e la sua webapp.
+3. Caricare *un solo XLS* rappresentativo, scegliere la data di
+   registrazione e premere **Controlla ordini**.
+4. Leggere il rapporto: nuovi clienti, colori, modelli, prodotti,
+   ordini e righe, già presenti e righe da correggere.
+5. Se tutto è corretto, confermare l'importazione. Ripetere la prova
+   con lo stesso file: il contatore di nuovi ordini dovrà essere zero.
+6. In seguito testare file di un colore non ancora registrato
+   (per esempio `BLU NOTTE.xls`) per verificare i progressivi.
+7. Per un archivio con alcune righe incomplete è disponibile
+   **Modalità prova**: importa soltanto gli ordini validi e
+   mostra le righe escluse. Non crea clienti o prodotti con chiavi
+   mancanti. Per l'uso definitivo si consiglia di risolvere prima
+   le segnalazioni.
+
+Questo è un importatore di trasferimento **sperimentale**; non
+modifica le quantità in magazzino quando crea ordini.
+Non abilita alcun accesso Cora/IA al database Tele. Nessun file Excel
+cliente viene caricato o tracciato su GitHub.
