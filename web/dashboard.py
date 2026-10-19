@@ -74,7 +74,7 @@ th{background:#e8eff6;white-space:nowrap}
 <button type="button" onclick="previewImport()">Controlla file</button>
 <button type="button" class="primary" onclick="applyImport()">Importa dopo verifica</button></form>
 <pre id="importPreview" style="white-space:pre-wrap"></pre></section>
-<section id="detail" class="hidden"><h2>Dettaglio ordine</h2><div id="detailText"></div>
+<section id="devReset" class="hidden"><h2>Test temporanei del gestionale</h2><p>Questa funzione riguarda soltanto Magazzino Tele. Prima di svuotare le tabelle salva una copia privata sul server.</p><button onclick="resetTele()">Cancella tutta la memoria</button></section><section id="detail" class="hidden"><h2>Dettaglio ordine</h2><div id="detailText"></div>
 <div class="tools"><button onclick="markOrder(true)">Segna evaso</button>
 <button onclick="markOrder(false)">Riapri ordine</button><button onclick="navigate('orders')">Torna agli ordini</button></div>
 <div class="scroll"><table><thead><tr><th>Modello</th><th>Colore</th><th>Quantità</th><th>Scritta</th><th>Cuscino</th></tr></thead><tbody id="detailRows"></tbody></table></div></section>
