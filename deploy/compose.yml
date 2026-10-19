@@ -1,0 +1,38 @@
+name: magazzino-tele
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: magazzino_tele
+      MYSQL_USER: tele
+      MYSQL_PASSWORD: ${TELE_DB_PASSWORD:?Set TELE_DB_PASSWORD in private .env}
+      MYSQL_ROOT_PASSWORD: ${TELE_ROOT_PASSWORD:?Set TELE_ROOT_PASSWORD in private .env}
+    volumes:
+      - tele_mysql:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -u root --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  web:
+    build: ../web
+    restart: unless-stopped
+    environment:
+      TELE_DB_HOST: db
+      TELE_DB_NAME: magazzino_tele
+      TELE_DB_USER: tele
+      TELE_DB_PASSWORD: ${TELE_DB_PASSWORD:?Missing}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${TELE_TAILSCALE_IP:?Enter the server Tailscale IPv4}:8082:8082"
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  tele_mysql:
