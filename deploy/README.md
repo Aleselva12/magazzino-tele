@@ -81,3 +81,96 @@ il volume non contenga dati. Nessuna re-inizializzazione automatica è prevista.
 
 Lo schema SQL generato rimane fuori da Git e viene copiato nell'immagine durante
 il build; la password MySQL continua a essere letta dal file privato `deploy/.env`.
+
+## Checkpoint web, database e pulsante applicazioni (19 ottobre 2026)
+
+**Causa schema incompleto:** il vecchio backup MySQL conteneva CREATE TABLE in ordine
+non adatto alle FOREIGN KEY (`magazzino` prima di `prodotti_completi`,
+`prodotti_completi` prima di `modelli` e colori). L'inizializzazione del
+volume poteva interrompersi a metà e MySQL tornare healthy al riavvio senza
+avere tutte le tabelle. Il generatore adesso emette le sette tabelle nel corretto
+ordine delle dipendenze, senza importare clienti, colori o ordini storici.
+
+**Sul server Debian già in funzione: non cancellare il volume MySQL.**
+Dopo aver integrato la PR e verificato che il codice del repository sia aggiornato:
+
+```bash
+cd /srv/apps/magazzino-tele
+git status --short
+git pull --ff-only origin master
+python3 deploy/prepare_schema.py --refresh
+python3 deploy/reconcile_schema.py
+```
+
+Se l'ultima verifica stampa tabelle mancanti ma *zero record*, e soltanto in quel caso:
+
+```bash
+python3 deploy/reconcile_schema.py --apply
+python3 deploy/reconcile_schema.py --require-complete
+```
+
+Se invece riscontra dati, tabelle inattese o colonne differenti **si ferma**.
+Non forzare l'operazione. È stata scelta una procedura con verifica manuale prima
+del primo recupero per evitare modifiche irreversibili.
+
+Una volta completato lo schema:
+
+```bash
+docker compose --env-file deploy/.env -f deploy/compose.yml up -d --build --wait
+docker compose --env-file deploy/.env -f deploy/compose.yml ps
+curl -fsS http://100.112.253.3:8082/health
+```
+
+L'indirizzo browser resta `http://serverale.tail7b83c3.ts.net:8082/`.
+L'accesso è limitato dalla tailnet Tailscale, non dal login della webapp.
+Verificare gli ACL/grants prima dell'utilizzo da parte di altri dispositivi.
+
+### Flussi disponibili nella nuova interfaccia
+
+- Home con creazione ordine, ricerca e filtro colore, clienti/fornitori,
+  inventario e anagrafiche.
+- Creazione **reale** ordine + righe prodotto, in una transazione, e aggiornamento
+  dello stato evaso. Nessun ordine demo.
+- Aggiornamento manuale giacenze per codice prodotto, senza toccare l'inventario
+  automaticamente durante la creazione di un ordine.
+- Importazione Excel `.xlsx` multipla con anteprima/validazione e rollback,
+  senza sovrascrivere tabelle già popolate. Nomi file accettati:
+  `customers.xlsx`, `modelli.xlsx`, `schema colori semplice.xlsx`,
+  `prodotti_completi.xlsx`, `ordini.xlsx`, `magazzino.xlsx`,
+  `ordiniprodotti.xlsx` (alias italiani supportati).
+- Le colonne devono corrispondere allo schema storico: la verifica segnala
+  eventuali intestazioni o riferimenti incompatibili prima del salvataggio.
+
+### Limiti residui e comportamento della versione desktop
+
+La vecchia app Tkinter aveva viste diverse: i primi pannelli della webapp
+non erano stati derivati dai flussi esistenti. Le nuove pagine riprendono le
+funzioni fondamentali, ma **non sono ancora equivalenti al 100%**:
+la modifica completa delle righe di un ordine, le etichette personalizzate,
+l'aggiornamento bidirezionale dello stock legato all'evasione e il ripristino
+guidato dei backup richiedono test e progettazione separati. Nel sorgente
+desktop alcune funzioni apparentemente presenti erano in realtà placeholder
+(tra cui il salvataggio del form `CreaOrdinePage._save_order`).
+
+### Backup del database Tele (separato da Cora)
+
+Prima di iniziare l'uso quotidiano, l'operatore può generare una copia MySQL
+consistente, in cartella privata *fuori* dalla repository:
+
+```bash
+cd /srv/apps/magazzino-tele
+python3 deploy/backup_mysql.py
+```
+
+I file sono in `/srv/apps/magazzino-tele-backups/`, con checksum SHA256.
+Questo **non equivale ancora a un ripristino collaudato**: provare il restore su
+un database isolato e conservare un'ulteriore copia su disco indipendente.
+Non caricare dump o file Excel dei clienti su GitHub.
+
+### Cora aggiorna Tele senza collegarlo all'IA
+
+Il pulsante **Gestisci applicazioni → Aggiorna e verifica** usa il servizio
+`cora-updater` sull'host, aggiorna il branch approvato, ricostruisce i container
+e controlla la salute della webapp. Non modifica PostgreSQL Cora, né concede
+tool IA su MySQL Tele. Il codice host dell'updater va aggiornato separatamente
+dopo il merge di Serveria (vedi `docs/MANAGED_APPS.md` in Serveria).
