@@ -68,13 +68,13 @@ th{background:#e8eff6;white-space:nowrap}
 <section id="catalog" class="hidden"><h2>Anagrafiche prodotti, modelli e colori</h2><p class="secondary">Lettura delle tabelle originali; l'importazione e le modifiche avanzate saranno gestite dalla sezione dedicata.</p>
 <div class="tools"><button onclick="showCatalog('models')">Modelli</button><button onclick="showCatalog('colors')">Colori</button><button onclick="showCatalog('products')">Prodotti</button></div>
 <div class="scroll"><table><tbody id="catalogRows"></tbody></table></div></section>
-<section id="import" class="hidden"><h2>Importazione Excel</h2><p>Carica i file Excel delle anagrafiche tramite la funzione di importazione controllata. Nessun dato viene importato automaticamente da GitHub.</p>
+<section id="import" class="hidden"><h2>Importazione CSV, XLS, XLSX e ZIP</h2><p>Carica i file Excel delle anagrafiche tramite la funzione di importazione controllata. Nessun dato viene importato automaticamente da GitHub.</p>
 <p id="importGuide" class="secondary">Ordine di caricamento: clienti, modelli, colori, prodotti, ordini, magazzino, righe ordine.</p>
-<form id="importForm"><input type="file" id="excelFiles" accept=".xlsx" multiple>
+<form id="importForm"><input type="file" id="excelFiles" accept=".csv,.xls,.xlsx,.zip" multiple>
 <button type="button" onclick="previewImport()">Controlla file</button>
 <button type="button" class="primary" onclick="applyImport()">Importa dopo verifica</button></form>
 <pre id="importPreview" style="white-space:pre-wrap"></pre></section>
-<section id="detail" class="hidden"><h2>Dettaglio ordine</h2><div id="detailText"></div>
+<section id="devReset" class="hidden"><h2>Test temporanei del gestionale</h2><p>Questa funzione riguarda soltanto Magazzino Tele. Prima di svuotare le tabelle salva una copia privata sul server.</p><button onclick="resetTele()">Cancella tutta la memoria</button></section><section id="detail" class="hidden"><h2>Dettaglio ordine</h2><div id="detailText"></div>
 <div class="tools"><button onclick="markOrder(true)">Segna evaso</button>
 <button onclick="markOrder(false)">Riapri ordine</button><button onclick="navigate('orders')">Torna agli ordini</button></div>
 <div class="scroll"><table><thead><tr><th>Modello</th><th>Colore</th><th>Quantità</th><th>Scritta</th><th>Cuscino</th></tr></thead><tbody id="detailRows"></tbody></table></div></section>
@@ -161,19 +161,36 @@ function renderInventory(){let q=$('stockSearch').value.toLowerCase(),tbody=$('s
  tbody.appendChild(tr)}}
 function showCatalog(which){let tbody=$('catalogRows');tbody.replaceChildren();
  for(const item of catalog[which]||[]){let tr=document.createElement('tr');Object.values(item).forEach(v=>cell(tr,v));tbody.appendChild(tr)}}
-let verifiedImport=false;
-$('excelFiles').addEventListener('change',()=>{verifiedImport=false;text($('importPreview'),'')});
+let verifiedImport=false,previewToken=null;
+$('excelFiles').addEventListener('change',()=>{verifiedImport=false;previewToken=null;text($('importPreview'),'')});
 async function sendFiles(apply){const files=$('excelFiles').files;if(!files.length){setMessage('Seleziona i file Excel');return}
- let form=new FormData();for(const file of files)form.append('files',file);
+ let form=new FormData();for(const file of files)form.append('files',file);if(apply&&previewToken)form.append('preview_token',previewToken);
  const route='workflow/import'+(apply?'?apply=1':'');
  let r=await fetch('/api/'+route,{method:'POST',body:form});let d=await r.json();
  if(!r.ok)throw Error(d.error||'Importazione non riuscita');
  text($('importPreview'),JSON.stringify(d,null,2));return d}
-async function previewImport(){try{await sendFiles(false);verifiedImport=true;setMessage('Controllo completato: verifica il riepilogo prima di importare')}
+async function previewImport(){try{const info=await sendFiles(false);verifiedImport=Boolean(info.validated);previewToken=info.preview_token||null;setMessage('Controllo completato: verifica il riepilogo prima di importare')}
  catch(e){setMessage(e.message)}}
 async function applyImport(){if(!verifiedImport){setMessage('Esegui prima il controllo degli Excel');return}
  if(!confirm('Importare i file nel database? Nessun dato esistente verrà sovrascritto.'))return;
  try{await sendFiles(true);verifiedImport=false;await loadCatalog();setMessage('Importazione completata')}
  catch(e){setMessage(e.message)}}
-void loadCatalog();navigate('home');
+
+async function loadResetStatus(){
+ try {const r=await api('workflow/dev-reset/status');$('devReset').classList.toggle('hidden',!r.enabled)}
+ catch(e){$('devReset').classList.add('hidden')}
+}
+async function resetTele(){
+ const phrase='CANCELLA MAGAZZINO TELE';
+ if(prompt('Vuoi azzerare solo i dati di Magazzino Tele? Verrà salvato un backup. Digita '+phrase)!==phrase)return;
+ const code=prompt('Codice temporaneo di manutenzione:');if(!code)return;
+ if(!confirm('Confermi la cancellazione di clienti, ordini, prodotti e giacenze dal solo gestionale Tele?'))return;
+ try{
+  const r=await api('workflow/dev-reset',{method:'POST',headers:{'Content-Type':'application/json','X-Dev-Reset-Token':code},
+   body:JSON.stringify({confirm:phrase})});
+  await loadCatalog();navigate('home');
+  setMessage('Test ripristinato. Record rimossi: '+r.rows_removed+'. Copia privata: '+r.backup);
+ }catch(e){setMessage('Operazione annullata: '+e.message)}
+}
+void loadCatalog();void loadResetStatus();navigate('home');
 </script></body></html>"""

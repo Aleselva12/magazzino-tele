@@ -174,3 +174,77 @@ Il pulsante **Gestisci applicazioni → Aggiorna e verifica** usa il servizio
 e controlla la salute della webapp. Non modifica PostgreSQL Cora, né concede
 tool IA su MySQL Tele. Il codice host dell'updater va aggiornato separatamente
 dopo il merge di Serveria (vedi `docs/MANAGED_APPS.md` in Serveria).
+
+## Prima prova con gli archivi originali forniti il 19/10/2026
+
+**Verifica dei formati reali:**
+- `123.zip` contiene `customers.csv` (11.557 righe), `modelli.csv`
+  (34), `schema colori semplice.csv` (131), `prodotti_completi.csv`
+  (4.454), `magazzino.csv` (matrice 131x35 ma **nessuna quantità
+  compilata**), `ordini.csv` e `Prodottiordini.csv` vuoti.
+- Contiene anche `schema colori.csv`, con **codici discordanti** rispetto
+  alla versione semplice. Per conservare i riferimenti di
+  `prodotti_completi.csv`, l'importer sceglie la mappa semplice e
+  **mostra un avviso** sulla discordanza; la mappa estesa non è persa.
+- `excel.zip` contiene ~140 vecchi fogli `.xls` riferiti a singoli
+  colori, più la mappa `.xlsx` che conta **143 righe**, non 143 codici
+  necessariamente univoci (sono presenti duplicati e codici alfanumerici).
+  Queste non sono le stesse tabelle relazionali MySQL del vecchio database.
+  Non vengono trasformate arbitrariamente in stock.
+- La fotografia dello schema ERD aggiunge `Shipments`: è un **disegno
+  concettuale**, diverso dalle sette tabelle effettive dello storico SQL
+  e dalle tabelle usate oggi dalla webapp. L'introduzione di spedizioni
+  e dei dettagli colore richiede una migrazione esplicita, non è stata
+  eseguita in questa versione per non compromettere le chiavi esistenti.
+
+**Per la prima accensione:**
+1. Eseguire un backup del database Tele esistente con
+   `python3 deploy/backup_mysql.py` (il dump rimane fuori da Git).
+2. Aggiornare la repository `master`, quindi ricostruire
+   `docker compose --env-file deploy/.env -f deploy/compose.yml up -d --build --wait`.
+3. Aprire `http://serverale.tail7b83c3.ts.net:8082/` da un dispositivo
+   Tailscale autorizzato.
+4. Menu **Importa Excel**: caricare direttamente `123.zip` con
+   selettore `ZIP, CSV, XLS, XLSX`; avviare **Controlla file**.
+5. Leggere l'elenco delle tabelle, i conteggi e gli avvisi sui file
+   esclusi. Premere **Importa dopo verifica**. Il token anteprima è
+   legato ai byte dei file e scade dopo un'ora.
+6. Non caricare due volte lo stesso archivio: le tabelle già popolate
+   bloccano intenzionalmente la duplicazione.
+7. I fogli per singolo colore `.xls` vengono riconosciuti come sorgenti,
+   ma **non assegnano scorte**. Si deve definire una mappa affidabile
+   delle celle/formule per importarli automaticamente.
+8. In caso di errore, raccogliere
+   `docker compose --env-file deploy/.env -f deploy/compose.yml logs --tail=60 web`,
+   ma non pubblicare le righe contenenti dati clienti.
+
+### Pulsante temporaneo: Cancella tutta la memoria
+
+Ambito **esclusivamente MySQL Magazzino Tele**. È disattivato per
+impostazione predefinita. Per abilitarlo solo durante la costruzione
+del gestionale, generare un segreto sul server e aggiungere le seguenti
+chiavi nel file **privato** `deploy/.env`:
+
+```ini
+TELE_DEV_RESET_ENABLED=true
+TELE_DEV_RESET_TOKEN=<genera-un-valore-casuale-lungo-almeno-24-caratteri>
+```
+
+Per generare il codice nel Debian: `python3 -c 'import secrets;print(secrets.token_urlsafe(36))'`.
+Riavviare **soltanto il servizio web** con
+`docker compose --env-file deploy/.env -f deploy/compose.yml up -d --no-deps web`.
+
+L'operatore deve digitare esattamente `CANCELLA MAGAZZINO TELE`, inserire
+il token privato e dare conferma. Il server crea **prima** un backup
+JSON compresso in un volume Docker persistente `tele_reset_backups`
+(indipendente dal volume MySQL), e poi cancella in transazione solo
+le righe delle sette tabelle, senza eliminare le tabelle. **Il reset
+non cancella mai Cora, il NAS, foto o dati delle altre applicazioni.**
+
+Non esporre il token in chat, screenshot o GitHub. Dopo i collaudi
+rimuovere le due variabili dal file privato, spegnere la funzione e
+togliere il pulsante dal frontend.
+
+**Nota sicurezza:** fintanto che la webapp non usa login applicativo,
+mantenere la porta HTTP vincolata all'IP Tailscale e restringere gli
+accessi con le grants/ACL Tailscale.

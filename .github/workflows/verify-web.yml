@@ -11,6 +11,8 @@ jobs:
       TELE_DB_PASSWORD: ci_password_not_real
       TELE_ROOT_PASSWORD: ci_root_password_not_real
       TELE_TAILSCALE_IP: 127.0.0.1
+      TELE_DEV_RESET_ENABLED: 'true'
+      TELE_DEV_RESET_TOKEN: ci_only_reset_key_for_disposable_database_123456
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,8 +37,8 @@ jobs:
           PY
       - name: Disposable host config
         run: |
-          printf 'TELE_DB_PASSWORD=%s\nTELE_ROOT_PASSWORD=%s\nTELE_TAILSCALE_IP=%s\n' \
-            "$TELE_DB_PASSWORD" "$TELE_ROOT_PASSWORD" "$TELE_TAILSCALE_IP" > deploy/.env
+          printf 'TELE_DB_PASSWORD=%s\nTELE_ROOT_PASSWORD=%s\nTELE_TAILSCALE_IP=%s\nTELE_DEV_RESET_ENABLED=%s\nTELE_DEV_RESET_TOKEN=%s\n' \
+            "$TELE_DB_PASSWORD" "$TELE_ROOT_PASSWORD" "$TELE_TAILSCALE_IP" "$TELE_DEV_RESET_ENABLED" "$TELE_DEV_RESET_TOKEN" > deploy/.env
           chmod 600 deploy/.env
           docker compose --env-file deploy/.env -f deploy/compose.yml config --quiet
       - name: Start test database and web
